@@ -1,0 +1,14 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- hosts: nginx-webservers
+  sudo: True
+  vars:
+    nginx_user: www-data
+    nginx_group: www-data
+  handlers:
+    - include: handlers/nginx.yml
+    - include: handlers/iptables.yml
+  tasks:
+    - include: tasks/nginx.yml
+    - include: tasks/iptables-http.yml

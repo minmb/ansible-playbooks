@@ -1,0 +1,13 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- name: install nginx
+  apt: pkg=nginx state=present update_cache=yes
+
+- template: src=templates/etc_nginx_global.conf.j2 dest=/etc/nginx/global.conf
+  notify:
+  - restart nginx
+
+- template: src=templates/etc_nginx_nginx.conf.j2 dest=/etc/nginx/nginx.conf
+  notify:
+  - restart nginx

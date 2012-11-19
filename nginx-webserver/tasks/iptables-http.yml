@@ -1,0 +1,8 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- file: path=/etc/iptables.d state=directory
+- name: install http rules for iptables
+  copy: src=files/etc_iptables.d_01-http dest=/etc/iptables.d/01-http
+  notify:
+  - reload iptables

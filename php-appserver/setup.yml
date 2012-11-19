@@ -1,0 +1,12 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- hosts: php-appservers
+  sudo: True
+  vars:
+    php_user: www-data
+    php_group: www-data
+  handlers:
+  - include: handlers/php5-fpm.yml
+  tasks:
+  - include: tasks/php5-fpm.yml 

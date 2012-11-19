@@ -1,0 +1,5 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- name: restart nginx
+  service: name=nginx state=restarted

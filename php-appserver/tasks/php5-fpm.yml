@@ -1,0 +1,21 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- name: install php5-fpm
+  apt: pkg=php5-fpm state=present update_cache=yes
+
+- file: path=/var/tmp/php5-fpm/uploads owner=$php_user group=$php_group mode=0700 state=directory
+- file: path=/var/tmp/php5-fpm/sessions owner=$php_user group=$php_group mode=0700 state=directory
+- file: path=/etc/nginx state=directory
+
+- template: src=templates/etc_nginx_php.conf.j2 dest=/etc/nginx/php.conf
+  notify:
+    - restart php5-fpm
+
+- template: src=templates/etc_php5_fpm_php.ini.j2 dest=/etc/php5/fpm/php.ini
+  notify:
+    - restart php5-fpm
+
+- template: src=templates/etc_php5_fpm_pool.d_www.conf.j2 dest=/etc/php5/fpm/pool.d/www.conf
+  notify:
+    - restart php5-fpm
