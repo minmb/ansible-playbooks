@@ -1,0 +1,9 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- hosts: ruby-appservers
+  sudo: True
+  tasks:
+  - include: tasks/rvm.yml user=$user
+  - include: tasks/ruby.yml ruby=1.9.3
+  - include: tasks/unicorn.yml

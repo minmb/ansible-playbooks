@@ -1,0 +1,5 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- name: install a ruby
+  action: rvm ruby=$ruby binary=True state=present

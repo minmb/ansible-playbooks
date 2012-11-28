@@ -1,0 +1,6 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+
+- name: install unicorn gem  
+  action: gem name=unicorn state=present

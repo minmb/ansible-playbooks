@@ -1,0 +1,144 @@
+#!/usr/bin/env python
+# -*- mode: python; tab-width: 4; indent-tabs-mode: nil; encoding: utf-8 -*-
+
+import subprocess
+import traceback
+
+class GemError(Exception):
+
+    def __init__(self, code=None, command=None, output=None, process_error=None):
+        self._code = code
+        self._command = command
+        self._output = output
+        self._process_error = process_error
+
+    def __str__(self):
+        return 'GemError: code=%s, command=%s, output=%s' % (self.code, self.command, self.output)
+
+    @property 
+    def code(self):
+        return self._code or self._process_error.returncode
+
+    @property
+    def command(self):
+        return self._command or self._process_error.cmd
+
+    @property
+    def output(self):
+        return self._output or self._process_error.output
+
+
+class Gem(object):
+
+    @classmethod
+    def is_installed(self, name, version=None):
+        args = ['-i', '-n', '^%s$' % name]
+
+        if version:
+            args.extend(['-v', version])
+        
+        try:
+
+            self._gem('query', *args)
+
+            return True
+
+        except GemError, e:
+            return False
+
+    @classmethod
+    def install(self, name, version=None):
+        args = ['--no-ri', '--no-rdoc', name]
+    
+        if version:
+            args.extend(['-v', version])
+
+        self._gem('install', *args)
+
+    @classmethod
+    def uninstall(self, name, version=None):
+        args = ['--executables', '--ignore-dependencies', name] 
+
+        if version:
+            args.extend(['-v', version])
+
+        self._gem('uninstall', *args)
+
+    @classmethod
+    def _gem(self, command, *args, **kwargs):
+        try:
+            return Process.check_output(['gem', command] + list(args), stderr=subprocess.STDOUT)
+        
+        except subprocess.CalledProcessError, e:
+            raise GemError(process_error=e)
+
+
+class Process(object):
+
+    @classmethod
+    def check_output(self, *args, **kwargs):
+        if callable(getattr(subprocess, 'check_output', None)):
+            return subprocess.check_output(*args, **kwargs)
+        else:
+            return self._check_output(*args, **kwargs)
+
+    @classmethod
+    def _check_output(self, *args, **kwargs):
+        if 'stdout' in kwargs:
+            raise ValueError('stdout argument not allowed, it will be overridden.')
+        process = subprocess.Popen(stdout=subprocess.PIPE, *args, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = args[0]
+
+            error = subprocess.CalledProcessError(retcode, cmd)
+            error.output = output
+            raise error
+
+        return output
+
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            state     = dict(default='present', choices=['present', 'absent']),
+            name      = dict(required=True),
+            version   = dict(required=False, default=None)
+        )
+    )
+
+    state = module.params['state']
+    name = module.params['name']
+    version = module.params['version']
+
+    # we leave unchanged if:
+    #   - gem is installed and we request it NOT to be absent
+    #   - gem is not installed and we request it to be absent
+    if Gem.is_installed(name, version) ^ (state == 'absent'):
+        module.exit_json(changed=False, name=name, state=state)
+
+    command = Gem.uninstall if state == 'absent' else Gem.install
+
+    try:
+
+        command(name, version)
+        module.exit_json(changed=True, name=name, state=state)
+
+    except SystemExit:
+        pass
+
+    except (OSError, IOError), e:
+        module.fail_json(msg=str(e), rc=e.errno)
+    
+    except GemError, e:
+        module.fail_json(msg=str(e), rc=e.code)
+    
+    except:
+        module.fail_json(msg=traceback.format_exc(), rc=257)
+
+# include magic from lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()

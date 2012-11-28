@@ -1,0 +1,176 @@
+#!/usr/bin/env python
+# -*- mode: python; tab-width: 4; indent-tabs-mode: nil; encoding: utf-8 -*-
+
+import sys
+import shlex
+import subprocess
+import traceback
+
+class RVMError(Exception):
+
+    def __init__(self, code=None, command=None, output=None, process_error=None):
+        self._code = code
+        self._command = command
+        self._output = output
+        self._process_error = process_error
+
+    def __str__(self):
+        return 'RVMError: code=%s, command=%s, output=%s' % (self.code, self.command, self.output)
+
+    @property 
+    def code(self):
+        return self._code or self._process_error.returncode
+
+    @property
+    def command(self):
+        return self._command or self._process_error.cmd
+
+    @property
+    def output(self):
+        return self._output or self._process_error.output
+
+
+class RVM(object):
+
+    @classmethod
+    def exists(self, ruby, gemset=None):
+
+        try:
+
+            self._rvm(self._rubystring(ruby, gemset), 'do', 'ruby -v')
+        
+        except RVMError, e:
+            if 'not installed' not in e.output:
+                raise e
+            
+            return False
+
+        return True
+
+    @classmethod
+    def install(self, ruby, *flags):
+        args = [ruby] + list(flags)
+
+        output = self._rvm('install', *args).strip()
+
+        # this really ought to be handled better by RVM itself
+        if 'importing default gemsets' not in output: 
+            raise RVMError(code=1, command='rvm install %s' % ' '.join(args), output=output)
+
+    @classmethod
+    def remove(self, ruby):
+        self._rvm('remove', ruby)
+
+    @classmethod
+    def use(self, ruby, gemset=None, create=False, default=False):
+        args = [self._rubystring(ruby, gemset)]
+
+        if create:
+            args.append('--create')
+
+        if default:
+            args.append('--default')
+
+        self._rvm('use', *args)
+
+    @classmethod
+    def delete_gemset(self, name, ruby=None):
+        self._rvm('gemset', 'delete', self._rubystring(ruby, name), '--force')
+
+    @classmethod
+    def _rubystring(self, ruby=None, gemset=None):
+        
+        rubystring = ruby or ''
+
+        if gemset:
+            rubystring = rubystring + '@' + gemset
+        
+        return rubystring
+
+    @classmethod
+    def _rvm(self, command, *args):
+        try:
+
+            args = ['/bin/bash', '-l', '-c', ' '.join(['rvm', command] + list(args))]
+            return Process.check_output(args, shell=False, stderr=subprocess.STDOUT)
+        
+        except subprocess.CalledProcessError, e:
+            raise RVMError(process_error=e)
+
+
+class Process(object):
+
+    @classmethod
+    def check_output(self, *args, **kwargs):
+        if callable(getattr(subprocess, 'check_output', None)):
+            return subprocess.check_output(*args, **kwargs)
+        else:
+            return self._check_output(*args, **kwargs)
+
+    @classmethod
+    def _check_output(self, *args, **kwargs):
+        if 'stdout' in kwargs:
+            raise ValueError('stdout argument not allowed, it will be overridden.')
+        process = subprocess.Popen(stdout=subprocess.PIPE, *args, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = args[0]
+
+            error = subprocess.CalledProcessError(retcode, cmd)
+            error.output = output
+            raise error
+
+        return output
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            state     = dict(default='present', choices=['present', 'absent', 'default']),
+            ruby      = dict(required=True),
+            gemset    = dict(required=False, default=None),
+            flags     = dict(required=False, default='')
+        )
+    )
+
+    state = module.params['state']
+    ruby = module.params['ruby']
+    gemset = module.params['gemset']
+    flags = shlex.split(module.params['flags'])
+
+    try:
+
+        exists = RVM.exists(ruby, gemset)
+ 
+        if exists and state == 'present' or \
+           not exists and state == 'absent':
+            module.exit_json(changed=False, ruby=ruby, gemset=gemset, state=state)
+
+        if not state == 'absent':
+            if not RVM.exists(ruby):
+                RVM.install(ruby, *flags)
+
+            RVM.use(ruby, gemset, create=True, default=(state == 'default'))
+        else:
+            RVM.delete_gemset(gemset, ruby)
+            RVM.remove(ruby)
+
+        module.exit_json(changed=True, ruby=ruby, gemset=gemset, state=state)
+
+    except SystemExit:
+        pass
+
+    except (OSError, IOError), e:
+        module.fail_json(msg=str(e), rc=e.errno)
+ 
+    except RVMError, e:
+        module.fail_json(msg=str(e), rc=e.code)
+   
+    except:
+        module.fail_json(msg=traceback.format_exc(), rc=257) 
+
+# include magic from lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()

@@ -1,0 +1,8 @@
+# -*- mode: yaml; tab-width: 2; indent-tabs-mode: nil -*-
+
+---
+- name: install rvm
+  apt: pkg=ruby-rvm state=present update_cache=yes
+
+- name: add user to the rvm group
+  user: name=$user groups=rvm
